@@ -1,10 +1,11 @@
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { eq, desc } from "drizzle-orm";
 import { type Image, type InsertImage, type User, type InsertUser, images, users } from "@shared/schema";
 
-const sql = neon(process.env.DATABASE_URL!);
-const db = drizzle(sql);
+const connectionString = process.env.DATABASE_URL!;
+const client = postgres(connectionString, { prepare: false });
+const db = drizzle(client);
 
 export interface IStorage {
   // User methods
@@ -57,7 +58,7 @@ class DatabaseStorage implements IStorage {
 
   async deleteImage(id: string): Promise<boolean> {
     const result = await db.delete(images).where(eq(images.id, id));
-    return result.rowCount > 0;
+    return result.length > 0;
   }
 }
 
