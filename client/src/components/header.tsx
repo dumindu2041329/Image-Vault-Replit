@@ -13,8 +13,6 @@ export function Header() {
             </div>
             <h1 className="text-2xl font-bold gradient-text">ImageVault</h1>
           </Link>
-          
-          
 
           <div className="flex items-center space-x-4">
             <ThemeToggle />

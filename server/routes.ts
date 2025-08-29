@@ -1,4 +1,4 @@
-import express, { type Express, type Request } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
@@ -35,7 +35,10 @@ const upload = multer({
   }
 });
 
+
 export async function registerRoutes(app: Express): Promise<Server> {
+
+
   // Serve uploaded images
   app.use('/uploads', (req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');

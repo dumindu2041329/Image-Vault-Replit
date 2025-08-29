@@ -1,45 +1,18 @@
-import { type User, type InsertUser, type Image, type InsertImage } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { type Image, type InsertImage } from "@shared/schema";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
   getImages(): Promise<Image[]>;
   getImage(id: string): Promise<Image | undefined>;
   createImage(image: InsertImage): Promise<Image>;
   deleteImage(id: string): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private images: Map<string, Image>;
-
-  constructor() {
-    this.users = new Map();
-    this.images = new Map();
-  }
-
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
-  }
+class MemoryStorage implements IStorage {
+  private images: Map<string, Image> = new Map();
 
   async getImages(): Promise<Image[]> {
-    return Array.from(this.images.values()).sort(
-      (a, b) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime()
+    return Array.from(this.images.values()).sort((a, b) => 
+      new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime()
     );
   }
 
@@ -48,13 +21,16 @@ export class MemStorage implements IStorage {
   }
 
   async createImage(insertImage: InsertImage): Promise<Image> {
-    const id = randomUUID();
-    const image: Image = { 
-      ...insertImage, 
-      id, 
+    const id = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const image: Image = {
+      id,
+      filename: insertImage.filename,
+      originalName: insertImage.originalName,
+      mimeType: insertImage.mimeType,
+      size: insertImage.size,
+      category: insertImage.category || "landscape",
+      userId: insertImage.userId || null,
       uploadedAt: new Date(),
-      category: insertImage.category || null,
-      userId: insertImage.userId || null
     };
     this.images.set(id, image);
     return image;
@@ -65,4 +41,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new MemoryStorage();
