@@ -38,6 +38,73 @@ const upload = multer({
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
+  // Configuration endpoint for client
+  app.get("/api/config", (req, res) => {
+    res.json({
+      supabaseUrl: process.env.SUPABASE_URL,
+      supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+    });
+  });
+
+  // User management endpoints
+  app.post("/api/users", async (req, res) => {
+    try {
+      const { id, email, fullName, avatarUrl } = req.body;
+      
+      if (!id || !email) {
+        return res.status(400).json({ message: "User ID and email are required" });
+      }
+
+      const user = await storage.createUser({
+        id,
+        email,
+        fullName: fullName || null,
+        avatarUrl: avatarUrl || null,
+      });
+
+      res.json(user);
+    } catch (error: any) {
+      console.error('Create user error:', error);
+      res.status(500).json({ message: "Failed to create user" });
+    }
+  });
+
+  app.get("/api/users/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = await storage.getUser(id);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  app.put("/api/users/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { email, fullName, avatarUrl } = req.body;
+      
+      const user = await storage.updateUser(id, {
+        email,
+        fullName,
+        avatarUrl,
+      });
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json(user);
+    } catch (error: any) {
+      console.error('Update user error:', error);
+      res.status(500).json({ message: "Failed to update user" });
+    }
+  });
 
   // Serve uploaded images
   app.use('/uploads', (req, res, next) => {
@@ -71,7 +138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           mimeType: file.mimetype,
           size: file.size,
           category: determineCategory(file.originalname),
-          userId: null
+          userId: req.headers['x-user-id'] || null
         };
 
         const validatedData = insertImageSchema.parse(imageData);

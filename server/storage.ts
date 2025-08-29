@@ -1,44 +1,64 @@
-import { type Image, type InsertImage } from "@shared/schema";
+import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
+import { eq, desc } from "drizzle-orm";
+import { type Image, type InsertImage, type User, type InsertUser, images, users } from "@shared/schema";
+
+const sql = neon(process.env.DATABASE_URL!);
+const db = drizzle(sql);
 
 export interface IStorage {
+  // User methods
+  createUser(user: InsertUser): Promise<User>;
+  getUser(id: string): Promise<User | undefined>;
+  updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
+  
+  // Image methods
   getImages(): Promise<Image[]>;
   getImage(id: string): Promise<Image | undefined>;
   createImage(image: InsertImage): Promise<Image>;
   deleteImage(id: string): Promise<boolean>;
 }
 
-class MemoryStorage implements IStorage {
-  private images: Map<string, Image> = new Map();
+class DatabaseStorage implements IStorage {
+  // User methods
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
 
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async updateUser(id: string, updateData: Partial<InsertUser>): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  // Image methods
   async getImages(): Promise<Image[]> {
-    return Array.from(this.images.values()).sort((a, b) => 
-      new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime()
-    );
+    return await db.select().from(images).orderBy(desc(images.uploadedAt));
   }
 
   async getImage(id: string): Promise<Image | undefined> {
-    return this.images.get(id);
+    const [image] = await db.select().from(images).where(eq(images.id, id));
+    return image;
   }
 
   async createImage(insertImage: InsertImage): Promise<Image> {
-    const id = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const image: Image = {
-      id,
-      filename: insertImage.filename,
-      originalName: insertImage.originalName,
-      mimeType: insertImage.mimeType,
-      size: insertImage.size,
-      category: insertImage.category || "landscape",
-      userId: insertImage.userId || null,
-      uploadedAt: new Date(),
-    };
-    this.images.set(id, image);
+    const [image] = await db.insert(images).values(insertImage).returning();
     return image;
   }
 
   async deleteImage(id: string): Promise<boolean> {
-    return this.images.delete(id);
+    const result = await db.delete(images).where(eq(images.id, id));
+    return result.rowCount > 0;
   }
 }
 
-export const storage = new MemoryStorage();
+export const storage = new DatabaseStorage();

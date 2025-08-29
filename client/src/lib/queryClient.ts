@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { supabase } from "./supabase";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -14,9 +15,23 @@ export async function apiRequest(
 ): Promise<Response> {
   const isFormData = data instanceof FormData;
   
+  // Get the current user if authenticated
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  const headers: Record<string, string> = {};
+  
+  if (!isFormData && data) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  // Add user ID header if authenticated
+  if (user) {
+    headers["x-user-id"] = user.id;
+  }
+  
   const res = await fetch(url, {
     method,
-    headers: !isFormData && data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: isFormData ? data : data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -31,8 +46,19 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    // Get the current user if authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    const headers: Record<string, string> = {};
+    
+    // Add user ID header if authenticated
+    if (user) {
+      headers["x-user-id"] = user.id;
+    }
+    
     const res = await fetch(queryKey.join("/") as string, {
       credentials: "include",
+      headers,
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
