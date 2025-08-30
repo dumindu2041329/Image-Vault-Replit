@@ -17,9 +17,27 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Configure multer for memory storage (we'll upload to Supabase)
+// Configure multer for local file storage with user folders
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const userId = req.headers['x-user-id'] as string;
+      const uploadDir = userId ? `uploads/${userId}` : 'uploads/anonymous';
+      
+      // Create directory if it doesn't exist
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const timestamp = Date.now();
+      const randomSuffix = Math.round(Math.random() * 1E9);
+      const fileExtension = path.extname(file.originalname);
+      const filename = `${timestamp}-${randomSuffix}${fileExtension}`;
+      cb(null, filename);
+    }
+  }),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
@@ -103,8 +121,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Images are now served from Supabase Storage
-  // No local file serving needed
+  // Serve uploaded images statically
+  app.use('/uploads', express.static('uploads'));
 
   // Get all images
   app.get("/api/images", async (req, res) => {
@@ -116,7 +134,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload images to Supabase Storage
+  // Upload images to local storage with user folders
   app.post("/api/images/upload", upload.array('images', 10), async (req: any, res) => {
     try {
       if (!req.files || !Array.isArray(req.files)) {
@@ -126,38 +144,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const uploadedImages = [];
       
       for (const file of req.files as Express.Multer.File[]) {
-        // Generate unique filename
-        const timestamp = Date.now();
-        const randomSuffix = Math.round(Math.random() * 1E9);
-        const fileExtension = path.extname(file.originalname);
-        const filename = `${timestamp}-${randomSuffix}${fileExtension}`;
-        const filePath = `images/${filename}`;
-        
-        // Upload to Supabase Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('images')
-          .upload(filePath, file.buffer, {
-            contentType: file.mimetype,
-            duplex: 'half'
-          });
-          
-        if (uploadError) {
-          console.error('Supabase upload error:', uploadError);
-          throw new Error(`Failed to upload ${file.originalname}`);
-        }
-        
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('images')
-          .getPublicUrl(filePath);
+        const userId = req.headers['x-user-id'] as string || 'anonymous';
 
         const imageData = {
-          filename: publicUrl, // Store the full Supabase URL
+          filename: `${userId}/${file.filename}`, // Store relative path only
           originalName: file.originalname,
           mimeType: file.mimetype,
           size: file.size,
           category: determineCategory(file.originalname),
-          userId: req.headers['x-user-id'] || null
+          userId: userId === 'anonymous' ? null : userId
         };
 
         const validatedData = insertImageSchema.parse(imageData);
@@ -182,19 +177,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Image not found" });
       }
 
-      // Extract file path from Supabase URL for deletion
-      const url = new URL(image.filename);
-      const filePath = url.pathname.split('/storage/v1/object/public/images/')[1];
-      
-      if (filePath) {
-        // Delete from Supabase Storage
-        const { error: deleteError } = await supabase.storage
-          .from('images')
-          .remove([`images/${filePath}`]);
-          
-        if (deleteError) {
-          console.error('Supabase delete error:', deleteError);
-        }
+      // Delete local file
+      const filePath = path.join(process.cwd(), 'uploads', image.filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
       }
 
       const deleted = await storage.deleteImage(id);
