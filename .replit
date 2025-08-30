@@ -38,3 +38,4 @@ localPort = 5000
 externalPort = 80
 
 [agent]
+integrations = ["javascript_supabase==1.0.0"]

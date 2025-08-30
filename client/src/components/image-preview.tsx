@@ -204,7 +204,7 @@ export function ImagePreview({
               )}
 
               <img
-                src={`/uploads/${currentImage.filename}`}
+                src={currentImage.filename}
                 alt={currentImage.originalName}
                 className="max-w-full max-h-full object-contain drop-shadow-2xl"
                 data-testid="img-preview"

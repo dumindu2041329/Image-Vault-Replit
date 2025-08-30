@@ -340,7 +340,7 @@ export function ImageGallery() {
                     selectedImages.has(image.id) ? "ring-2 ring-primary" : ""
                   }`}>
                     <img 
-                      src={`/uploads/${image.filename}`}
+                      src={image.filename}
                       alt={image.originalName}
                       className="w-full h-auto"
                       loading="lazy"
@@ -406,7 +406,7 @@ export function ImageGallery() {
                     {/* Thumbnail */}
                     <div className="flex-shrink-0">
                       <img 
-                        src={`/uploads/${image.filename}`}
+                        src={image.filename}
                         alt={image.originalName}
                         className="w-16 h-16 rounded-lg object-cover border"
                         loading="lazy"
